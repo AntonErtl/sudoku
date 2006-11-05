@@ -32,9 +32,9 @@ end-struct var%
 variable triggered \ constraints that have been triggered
 
 variable grid  \ n*n vars
-variable rows  \ n vars
-variable cols  \ n vars
-variable boxes \ n vars
+
+variable gridsize
+variable boxsize
 
 \ set words
 
@@ -60,6 +60,9 @@ variable boxes \ n vars
     \ set with u elements, all set
     1 swap lshift 1- ;
 
+: singleton ( u -- set )
+    1 swap lshift ;
+
 \ list words
 
 : list-tail ( addr1 -- addr2 )
@@ -75,11 +78,55 @@ variable boxes \ n vars
     list addr !
     addr list-tail ! ;
 
+\ constraint words
+
+: trigger-constraints ( var -- )
+    var-valconstraints @ triggered list-insert ;
+
+: del-elem ( mask var -- )
+    >r assert( dup singleton? )
+    r@ var-set @ 2dup and if
+	xor dup r@ var-set !
+	dup 0= throw
+	singleton? if
+	    r@ trigger-constraints
+	endif
+    endif
+    r> drop ;
+
+: var-constraint ( var1 var2 -- var1 var2 )
+    \ delete var1 element from var2, unless they are the same
+	2dup <> if
+	    over var-set @ over del-elem
+	endif ;
+
+: row-constraint ( var row -- )
+    gridsize @ 0 ?do
+	var-constraint var% %size +
+    loop
+    2drop ;
+
+: col-constraint ( var col -- )
+    gridsize @ 0 ?do
+	var-constraint var% %size gridsize @ * +
+    loop
+    2drop ;
+
+: box-constraint ( var box -- )
+    boxsize @ 0 ?do
+	dup >r
+	boxsize @ 0 ?do
+	    var-constraint var% %size +
+	loop
+	drop r> var% %size gridsize @ * +
+    loop
+    2drop ;
+
 \ variable words
 
 : set-variable ( u var -- )
     1 rot lshift over var-set !
-    var-valconstraints @ assert( dup 0= ) triggered list-insert ;
+    trigger-constraints ;
 
 : make-vars { u -- }
     u dup * { vars }
@@ -90,6 +137,8 @@ variable boxes \ n vars
 	var% %size +
     loop
     grid ! ;
+
+\ file reading
 
 : sudoku-char? ( c -- u|c f )
     dup '1 '9 1+ within if
@@ -133,12 +182,11 @@ variable boxes \ n vars
 
 : print-grid { u addr -- }
     \ print u*u grid at addr
-    u s>d d>f fsqrt f>d drop { boxsize }
     addr u 0 ?do
-	i boxsize mod 0= i 0> and if
+	i boxsize @ mod 0= i 0> and if
 	    cr
 	    u 0 ?do
-		i boxsize mod 0= i 0> and if
+		i boxsize @ mod 0= i 0> and if
 		    '+ emit
 		endif
 		'- emit
@@ -146,7 +194,7 @@ variable boxes \ n vars
 	endif
 	cr
 	u 0 ?do
-	    i boxsize mod 0= i 0> and if
+	    i boxsize @ mod 0= i 0> and if
 		'| emit
 	    endif
 	    dup print-var
@@ -157,6 +205,8 @@ variable boxes \ n vars
 
 : sudoku-file { c-addr u u2 -- }
     \ solve u2*u2 sudoku from file c-addr u
+    u2 s>d d>f fsqrt f>d drop boxsize !
+    u2 gridsize !
     u2 make-vars
     c-addr u read-sudoku
     propagate-constraints
