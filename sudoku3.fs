@@ -82,6 +82,39 @@ variable boxsize
     list addr !
     addr list-tail ! ;
 
+\ walkers
+
+: map-row ( ... row xt -- ... )
+    \ apply xt ( ... var -- ... ) to all variables of a row
+    { xt }
+    gridsize @ 0 ?do { var }
+	var xt execute
+	var var% %size +
+    loop
+    drop ;    
+
+: map-col ( ... col xt -- ... )
+    \ apply xt ( ... var -- ... ) to all variables of a col
+    { xt }
+    gridsize @ 0 ?do { var }
+	var xt execute
+	var var% %size gridsize @ * +
+    loop
+    drop ;    
+
+: map-box ( ... box xt -- ... )
+    \ apply xt ( ... var -- ... ) to all variables of a col
+    { xt }
+    boxsize @ 0 ?do { boxrow }
+	boxrow
+	boxsize @ 0 ?do { var }
+	    var xt execute
+	    var var% %size +
+	loop
+	drop boxrow var% %size gridsize @ * +
+    loop
+    drop ;
+
 \ constraint execution
 
 : trigger-constraints ( var -- )
@@ -102,31 +135,21 @@ variable boxsize
 
 : var-constraint ( var1 var2 -- var1 var2 )
     \ delete var1 element from var2, unless they are the same
-	2dup <> if
-	    over var-set @ over del-elem
-	endif ;
+    2dup <> if
+	over var-set @ over del-elem
+    endif ;
+
+: var-constraint1 ( var1 var2 -- var1 )
+    var-constraint drop ;
 
 : row-constraint ( var row -- )
-    gridsize @ 0 ?do
-	var-constraint var% %size +
-    loop
-    2drop ;
+    ['] var-constraint1 map-row drop ;
 
 : col-constraint ( var col -- )
-    gridsize @ 0 ?do
-	var-constraint var% %size gridsize @ * +
-    loop
-    2drop ;
+    ['] var-constraint1 map-col drop ;
 
 : box-constraint ( var box -- )
-    boxsize @ 0 ?do
-	dup >r
-	boxsize @ 0 ?do
-	    var-constraint var% %size +
-	loop
-	drop r> var% %size gridsize @ * +
-    loop
-    2drop ;
+    ['] var-constraint1 map-box drop ;
 
 : propagate-constraints ( -- )
     begin
