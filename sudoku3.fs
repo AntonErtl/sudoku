@@ -170,8 +170,37 @@ variable boxsize
     loop
     2drop ;
 
+: gen-col-constraints ( -- )
+    check
+    grid @
+    gridsize @ 0 ?do
+        dup
+	gridsize @ 0 ?do
+	    2dup swap ['] col-constraint gen-valconstraint
+	    var% %size gridsize @ * +
+	    check
+	loop
+	drop var% %size +
+    loop
+    drop ;
+
+: gen-box-constraints ( -- )
+    check
+    grid @
+    gridsize @ 0 ?do
+        dup
+	gridsize @ 0 ?do
+	    2dup swap ['] box-constraint gen-valconstraint
+	    var% %size gridsize @ * +
+	    check
+	loop
+	drop var% %size +
+    loop
+    drop ;
+
 : gen-constraints
-    gen-row-constraints ;
+    gen-row-constraints
+    gen-col-constraints ;
 
 \ variable words
 
