@@ -180,32 +180,28 @@ variable boxsize
     loop
     drop ;
 
+: gen-valconstraint1 { xt container var -- xt container }
+    var container xt gen-valconstraint
+    xt container
+    check ;
+
 : gen-row-constraints ( -- )
     check
-    grid @ dup
-    gridsize @ 0 ?do
-	gridsize @ 0 ?do
-	    2dup swap ['] row-constraint gen-valconstraint
-	    var% %size +
-	    check
-	loop
-	nip dup
+    ['] row-constraint grid @
+    gridsize @ 0 ?do ( xt row )
+	dup ['] gen-valconstraint1 map-row
+	var% %size gridsize @ * +
     loop
     2drop ;
 
 : gen-col-constraints ( -- )
     check
-    grid @
+    ['] col-constraint grid @
     gridsize @ 0 ?do
-        dup
-	gridsize @ 0 ?do
-	    2dup swap ['] col-constraint gen-valconstraint
-	    var% %size gridsize @ * +
-	    check
-	loop
-	drop var% %size +
+	dup ['] gen-valconstraint1 map-col
+	var% %size +
     loop
-    drop ;
+    2drop ;
 
 : gen-box-constraints ( -- )
     check
