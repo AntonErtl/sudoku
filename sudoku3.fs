@@ -65,23 +65,27 @@ variable boxsize
 
 \ list words
 
+: list-insert { list addr -- }
+    addr @ list list-next !
+    list addr ! ;
+
 : list-tail ( addr1 -- addr2 )
-    begin
+    begin 
 	dup @ dup while
 	    nip list-next
     repeat
     drop ;
 
-: list-insert { list addr -- }
+: list-concat { list addr -- }
     \ insert list at the start of the list pointed to by addr
     addr @ ( list2 )
     list addr !
     addr list-tail ! ;
 
-\ constraint words
+\ constraint execution
 
 : trigger-constraints ( var -- )
-    var-valconstraints @ triggered list-insert ;
+    var-valconstraints @ triggered list-concat ;
 
 : del-elem ( mask var -- )
     >r assert( dup singleton? )
@@ -91,6 +95,8 @@ variable boxsize
 	singleton? if
 	    r@ trigger-constraints
 	endif
+    else
+	2drop
     endif
     r> drop ;
 
@@ -122,6 +128,51 @@ variable boxsize
     loop
     2drop ;
 
+: propagate-constraints ( -- )
+    begin
+	triggered @ dup while
+	    dup list-next @ triggered !
+	    constraints-xt @ execute
+    repeat
+    drop ;
+
+\ constraint creation
+
+: gen-valconstraint { var container xt -- }
+    constraints% %size allocate throw >r 
+    :noname
+    var       postpone literal
+    container postpone literal
+    xt compile,
+    postpone ;
+    r@ constraints-xt !
+    r> var var-valconstraints list-insert ;
+
+: check ( -- )
+    triggered list-tail drop
+    grid @
+    gridsize @ dup * 0 ?do
+	dup var-valconstraints list-tail drop
+	var% %size +
+    loop
+    drop ;
+
+: gen-row-constraints ( -- )
+    check
+    grid @ dup
+    gridsize @ 0 ?do
+	gridsize @ 0 ?do
+	    2dup swap ['] row-constraint gen-valconstraint
+	    var% %size +
+	    check
+	loop
+	nip dup
+    loop
+    2drop ;
+
+: gen-constraints
+    gen-row-constraints ;
+
 \ variable words
 
 : set-variable ( u var -- )
@@ -130,13 +181,14 @@ variable boxsize
 
 : make-vars { u -- }
     u dup * { vars }
-    vars var% %size * allocate throw
+    vars var% %size * allocate throw dup grid !
     vars 0 ?do
 	u full-set over var-set !
 	0 over var-valconstraints !
 	var% %size +
     loop
-    grid ! ;
+    drop
+check ;
 
 \ file reading
 
@@ -161,14 +213,7 @@ variable boxsize
     loop
     drop ;
 
-: propagate-constraints ( -- )
-    begin
-	triggered @ dup while
-	    dup list-next @ triggered !
-	    constraints-xt @ execute
-    repeat
-    drop ;
-
+\ printing
 
 : print-var ( var -- )
     var-set @ element-num dup 0< if
@@ -208,6 +253,7 @@ variable boxsize
     u2 s>d d>f fsqrt f>d drop boxsize !
     u2 gridsize !
     u2 make-vars
+    gen-constraints
     c-addr u read-sudoku
     propagate-constraints
     u2 grid @ print-grid ;
