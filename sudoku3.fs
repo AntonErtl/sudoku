@@ -1,5 +1,6 @@
 \ constraint-based sudoku solver (and maybe later more), by Anton Ertl
 
+
 \ Usage:
 
 \ To solve a 9x9 Sudoku with the start values residing in <file>
@@ -84,36 +85,25 @@ variable boxsize
 
 \ walkers
 
-: map-row ( ... row xt -- ... )
-    \ apply xt ( ... var -- ... ) to all variables of a row
-    { xt }
-    gridsize @ 0 ?do { var }
-	var xt execute
-	var var% %size +
-    loop
-    drop ;    
+: do-row ( compilation: -- do-sys; run-time: row -- row-elem R: row-elem )
+    ]] gridsize @ 0 ?do dup >r [[ ; immediate
 
-: map-col ( ... col xt -- ... )
-    \ apply xt ( ... var -- ... ) to all variables of a col
-    { xt }
-    gridsize @ 0 ?do { var }
-	var xt execute
-	var var% %size gridsize @ * +
-    loop
-    drop ;    
+: loop-row ( compilation: -- do-sys; run-time: R: row-elem -- )
+    ]] r> var% %size + loop drop [[ ; immediate
 
-: map-box ( ... box xt -- ... )
-    \ apply xt ( ... var -- ... ) to all variables of a col
-    { xt }
-    boxsize @ 0 ?do { boxrow }
-	boxrow
-	boxsize @ 0 ?do { var }
-	    var xt execute
-	    var var% %size +
-	loop
-	drop boxrow var% %size gridsize @ * +
-    loop
-    drop ;
+: do-col ( compilation: -- do-sys; run-time: col -- col-elem R: col-elem )
+    ]] gridsize @ 0 ?do dup >r [[ ; immediate
+
+: loop-col ( compilation: -- do-sys; run-time: R: col-elem -- )
+    ]] r> var% %size gridsize @ * + loop drop [[ ; immediate
+
+: do-box ( compilation: -- do-sys; run-time: box -- box-elem R: box-elem )
+    ]] boxsize @ 0 ?do dup >r
+	boxsize @ 0 ?do dup >r [[ ; immediate
+
+: loop-box ( compilation: -- do-sys; run-time: R: col-elem -- ) 
+    ]] r> var% %size + loop drop r> var% %size gridsize @ * + loop drop [[
+; immediate
 
 \ constraint execution
 
@@ -143,13 +133,13 @@ variable boxsize
     var-constraint drop ;
 
 : row-constraint ( var row -- )
-    ['] var-constraint1 map-row drop ;
+    do-row var-constraint drop loop-row ;
 
 : col-constraint ( var col -- )
-    ['] var-constraint1 map-col drop ;
+    do-col var-constraint drop loop-col ;
 
 : box-constraint ( var box -- )
-    ['] var-constraint1 map-box drop ;
+    do-box var-constraint drop loop-box ;
 
 : propagate-constraints ( -- )
     begin
@@ -191,13 +181,21 @@ variable boxsize
 
 : gen-row-constraints ( -- )
     check
-    ['] map-row ['] row-constraint grid @ ['] gen-contconstraint map-col
-    2drop ;
+    grid @ do-col
+	dup do-row
+	    over ['] row-constraint gen-valconstraint
+	loop-row
+	drop
+    loop-col ;
 
 : gen-col-constraints ( -- )
     check
-    ['] map-col ['] col-constraint grid @ ['] gen-contconstraint map-row
-    2drop ;
+    grid @ do-row
+	dup do-col
+	    over ['] col-constrain gen-valconstraint
+	loop-col
+	drop
+    loop-row ;
 
 : gen-box-constraints ( -- )
     check
@@ -305,3 +303,7 @@ check ;
 : sudoku ( "name" -- )
     parse-name 9 sudoku-file ;
 
+\ Local Variables:
+\ forth-local-indent-words: ((("do-row" "do-col" "do-box") (0 . 2) (0 . 2)) (("loop-row" "loop-col" "loop-box") (-2 . 0) (0 . -2)))
+\ forth-local-words: ((("do-row" "do-col" "do-box" "loop-row" "loop-col" "loop-box") compile-only (font-lock-keyword-face . 2)))
+\ End:
