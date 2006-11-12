@@ -133,13 +133,13 @@ variable boxsize
     var-constraint drop ;
 
 : row-constraint ( var row -- )
-    do-row var-constraint drop loop-row ;
+    do-row var-constraint drop loop-row drop ;
 
 : col-constraint ( var col -- )
-    do-col var-constraint drop loop-col ;
+    do-col var-constraint drop loop-col drop ;
 
 : box-constraint ( var box -- )
-    do-box var-constraint drop loop-box ;
+    do-box var-constraint drop loop-box drop ;
 
 : propagate-constraints ( -- )
     begin
@@ -183,7 +183,7 @@ variable boxsize
     check
     grid @ do-col
 	dup do-row
-	    over ['] row-constraint gen-valconstraint
+	    over ['] row-constraint gen-valconstraint check
 	loop-row
 	drop
     loop-col ;
@@ -192,7 +192,7 @@ variable boxsize
     check
     grid @ do-row
 	dup do-col
-	    over ['] col-constrain gen-valconstraint
+	    over ['] col-constraint gen-valconstraint check
 	loop-col
 	drop
     loop-row ;
