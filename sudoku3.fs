@@ -101,9 +101,17 @@ variable boxsize
     ]] boxsize @ 0 ?do dup >r
 	boxsize @ 0 ?do dup >r [[ ; immediate
 
-: loop-box ( compilation: -- do-sys; run-time: R: col-elem -- ) 
+: loop-box ( compilation: -- do-sys; run-time: R: box-elem -- ) 
     ]] r> var% %size + loop drop r> var% %size gridsize @ * + loop drop [[
 ; immediate
+
+: do-boxes ( compilation: -- do-sys; run-time: grid -- box R: box )
+    ]] boxsize @ 0 ?do dup >r
+	boxsize @ 0 ?do dup >r [[ ; immediate
+
+: loop-boxes ( compilation: -- do-sys; run-time: R: box -- )
+    ]] r> var% %size boxsize @ * + loop drop
+       r> var% %size gridsize @ boxsize @ * * + loop drop [[ ; immediate
 
 \ constraint execution
 
@@ -199,21 +207,17 @@ variable boxsize
 
 : gen-box-constraints ( -- )
     check
-    grid @
-    gridsize @ 0 ?do
-        dup
-	gridsize @ 0 ?do
-	    2dup swap ['] box-constraint gen-valconstraint
-	    var% %size gridsize @ * +
-	    check
-	loop
-	drop var% %size +
-    loop
-    drop ;
+    grid @ do-boxes
+	dup do-box
+	    over ['] box-constraint gen-valconstraint check
+	loop-box
+	drop
+    loop-boxes ;
 
 : gen-constraints
     gen-row-constraints
-    gen-col-constraints ;
+    gen-col-constraints
+    gen-box-constraints ;
 
 \ variable words
 
