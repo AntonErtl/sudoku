@@ -1,6 +1,5 @@
 \ constraint-based sudoku solver (and maybe later more), by Anton Ertl
 
-
 \ Usage:
 
 \ To solve a 9x9 Sudoku with the start values residing in <file>
@@ -36,6 +35,12 @@ variable grid  \ n*n vars
 
 variable gridsize
 variable boxsize
+
+\ gridsize arrays of gridsize vectors; element[m][n] counts in how
+\ many places the digit n can still occur in the container m
+variable row-counts
+variable col-counts
+variable box-counts
 
 \ set words
 
@@ -219,6 +224,21 @@ variable boxsize
     gen-col-constraints
     gen-box-constraints ;
 
+
+\ counting potential values
+
+: gen-counts ( -- addr )
+    gridsize @ dup * dup chars allocate throw dup
+    rot 0 ?do
+        gridsize @ over c!
+        char+ loop
+    drop ;
+
+: init-counts ( -- )
+    gen-counts row-counts !
+    gen-counts col-counts !
+    gen-counts box-counts ! ;
+
 \ variable words
 
 : set-variable ( u var -- )
@@ -299,6 +319,7 @@ check ;
     u2 s>d d>f fsqrt f>d drop boxsize !
     u2 gridsize !
     u2 make-vars
+    init-counts
     gen-constraints
     c-addr u read-sudoku
     propagate-constraints
