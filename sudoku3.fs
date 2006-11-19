@@ -118,6 +118,10 @@ variable box-counts
     ]] r> var% %size boxsize @ * + loop drop
        r> var% %size gridsize @ boxsize @ * * + loop drop [[ ; immediate
 
+: cont-i ( -- n )
+    \ container index
+    ]] r> i swap >r [[ ; immediate
+
 \ constraint execution
 
 : trigger-constraints ( var -- )
@@ -239,6 +243,42 @@ variable box-counts
     gen-counts col-counts !
     gen-counts box-counts ! ;
 
+: var-set? ( var n -- f )
+    1 swap lshift swap @ and 0<> ;
+
+: check-rowcounts-digit ( n -- )
+    { digit } grid @ do-col
+	0 swap do-row
+	    digit var-set? -
+	loop-row
+	cont-i chars row-counts @ + c@ <> throw
+    loop-col ;
+
+: check-colcounts-digit ( n -- )
+    { digit } grid @ do-row
+	0 swap do-col
+	    digit var-set? -
+	loop-col
+	cont-i chars col-counts @ + c@ <> throw
+    loop-row ;
+
+: check-boxcounts-digit ( n -- )
+    { digit } grid @ do-boxes
+	0 swap do-box
+	    digit var-set? -
+	loop-box
+	cont-i chars box-counts @ + c@ <> throw
+    loop-boxes ;
+
+: check-counts ( -- )
+    gridsize @ 0 ?do
+	i check-rowcounts-digit
+	i check-colcounts-digit
+	i check-boxcounts-digit
+    loop ;
+
+
+
 \ variable words
 
 : set-variable ( u var -- )
@@ -254,7 +294,7 @@ variable box-counts
 	var% %size +
     loop
     drop
-check ;
+    check ;
 
 \ file reading
 
@@ -320,6 +360,7 @@ check ;
     u2 gridsize !
     u2 make-vars
     init-counts
+    check-counts 
     gen-constraints
     c-addr u read-sudoku
     propagate-constraints
