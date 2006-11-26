@@ -13,6 +13,10 @@
 
 : parse-name parse-word ;
 
+\ defered words
+
+defer set-variable
+
 \ linked list
 struct
     cell% field list-next
@@ -90,12 +94,18 @@ variable box-counts
 
 \ index words
 
-: var-indexes ( addr -- row col box )
+: var-indexes ~~ ( addr -- row col box )
     grid @ - var% %size /mod ( 0 index )
     assert( over 0= )
     assert( dup gridsize @ dup * < )
     nip gridsize @ /mod swap
     over boxsize @ / boxsize @ * over boxsize @ / + ;
+
+: row-addr ( row# -- addr )
+    gridsize @ * var% %size * grid @ + ;
+
+: col-addr ( col# -- addr )
+    var% %size * grid @ + ;
 
 \ walkers
 
@@ -187,8 +197,32 @@ variable box-counts
 	i check-boxcounts-digit
     loop ;
 
-: cdecr ( c-addr -- )
-    dup c@ 1- swap c! ;
+: gen-countconstraint ~~ { cont# digit# xt -- }
+    constraints% %size allocate throw >r
+    :noname
+    cont#  postpone literal
+    digit# postpone literal
+    xt compile,
+    postpone ;
+    r@ constraints-xt !
+    r> triggered list-insert ;
+    
+: update-count { cont# digit# c-addr1 xt -- }
+    \ xt ( cont# digit# -- ) is called if only one value is left
+    cont# digit# c-addr1 count-addr ( c-addr2 )
+    dup c@ 1- dup rot c! assert( dup 0<> )
+    1 = if
+	\ delay execution to avoid reentrancy issures
+\	cont# digit# xt gen-countconstraint
+    endif ;
+
+: row-oneval { row digit -- }
+    row row-addr do-col
+	dup var-set @ digit singleton and if
+	    digit over set-variable
+	endif
+	drop
+    loop-col ;
 
 : change-var { changes var -- }
     \ changes is the set of bits that are deleted from var
@@ -197,19 +231,23 @@ variable box-counts
     gridsize @ 0 ?do
 	i singleton changes and if
 	    var var-indexes
-	    i box-counts @ count-addr cdecr
-	    i col-counts @ count-addr cdecr
-	    i row-counts @ count-addr cdecr
+	    i box-counts @ ['] 2drop update-count
+	    i col-counts @ ['] 2drop update-count
+	    i row-counts @ ['] row-oneval update-count
 	endif
     loop
     var var-set dup @ changes xor swap !
-    check-counts ;
+    check-counts \ not re-rentrant
+;
 
 \ setting/changing variables
 
 : set-var ( set var -- )
     \ set variable to set
-    dup var-set @ rot xor swap change-var ;
+    dup var-set @ rot xor dup if
+	2dup swap change-var
+    endif
+    2drop ;
 
 \ constraint execution
 
@@ -321,9 +359,13 @@ variable box-counts
 
 \ variable words
 
-: set-variable ( u var -- )
-    swap singleton over set-var
-    trigger-constraints ;
+:noname ( u var -- )
+    swap singleton over var-set @ over <> if ( var mask )
+	over set-var trigger-constraints
+    else
+	2drop
+    endif ;
+is set-variable
 
 : make-vars { u -- }
     u dup * { vars }
@@ -350,7 +392,7 @@ variable box-counts
 : read-sudoku ( c-addr u -- )
     slurp-file grid @ -rot bounds ?do
 	i c@ sudoku-char? if
-	    over set-variable
+	    over set-variable check-counts
 	    'a \ a dummy non-control character
 	endif
 	bl >= if
