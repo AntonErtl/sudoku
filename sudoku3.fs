@@ -88,6 +88,15 @@ variable box-counts
     list addr !
     addr list-tail ! ;
 
+\ index words
+
+: var-indexes ( addr -- row col box )
+    grid @ - var% %size /mod ( 0 index )
+    assert( over 0= )
+    assert( dup gridsize @ dup * < )
+    nip gridsize @ /mod swap
+    over boxsize @ / boxsize @ * over boxsize @ / + ;
+
 \ walkers
 
 : do-row ( compilation: -- do-sys; run-time: row -- row-elem R: row-elem )
@@ -118,9 +127,89 @@ variable box-counts
     ]] r> var% %size boxsize @ * + loop drop
        r> var% %size gridsize @ boxsize @ * * + loop drop [[ ; immediate
 
-: cont-i ( -- n )
+: i-row ( -- n )
     \ container index
     ]] r> i swap >r [[ ; immediate
+
+: i-col ]] i-row [[ ; immediate
+
+: i-boxes ( -- n )
+    ]] r> r> j swap >r boxsize @ * i + swap >r [[ ; immediate
+
+\ counting potential values
+
+: gen-counts ( -- addr )
+    gridsize @ dup * dup chars allocate throw dup
+    rot 0 ?do
+        gridsize @ over c!
+        char+ loop
+    drop ;
+
+: init-counts ( -- )
+    gen-counts row-counts !
+    gen-counts col-counts !
+    gen-counts box-counts ! ;
+
+: var-set? ( var n -- f )
+    1 swap lshift swap @ and 0<> ;
+
+: count-addr ( cont# digit# c-addr1 -- c-addr2 )
+    rot gridsize @ * rot + chars + ;
+
+: check-rowcounts-digit ( n -- )
+    { digit } grid @ do-col
+	0 swap do-row
+	    digit var-set? -
+	loop-row
+	i-col digit row-counts @ count-addr c@ <> throw
+    loop-col ;
+
+: check-colcounts-digit ( n -- )
+    { digit } grid @ do-row
+	0 swap do-col
+	    digit var-set? -
+	loop-col
+	i-row digit col-counts @ count-addr c@ <> throw
+    loop-row ;
+
+: check-boxcounts-digit ( n -- )
+    { digit } grid @ do-boxes
+	0 swap do-box
+	    digit var-set? -
+	loop-box
+	i-boxes digit box-counts @ count-addr c@ <> throw
+    loop-boxes ;
+
+: check-counts ( -- )
+    gridsize @ 0 ?do
+	i check-rowcounts-digit
+	i check-colcounts-digit
+	i check-boxcounts-digit
+    loop ;
+
+: cdecr ( c-addr -- )
+    dup c@ 1- swap c! ;
+
+: change-var { changes var -- }
+    \ changes is the set of bits that are deleted from var
+    assert( var var-set @ changes and changes = )
+    var var-indexes 2drop drop
+    gridsize @ 0 ?do
+	i singleton changes and if
+	    var var-indexes
+	    i box-counts @ count-addr cdecr
+	    i col-counts @ count-addr cdecr
+	    i row-counts @ count-addr cdecr
+	endif
+    loop
+    var var-set dup @ changes xor swap !
+    check-counts ;
+
+\ setting/changing variables
+
+: set-var ( set var -- )
+    \ set variable to set
+    dup var-set @ rot xor swap change-var ;
 
 \ constraint execution
 
@@ -129,14 +218,15 @@ variable box-counts
 
 : del-elem ( mask var -- )
     >r assert( dup singleton? )
-    r@ var-set @ 2dup and if
-	xor dup r@ var-set !
+    r@ var-set @ over and if ( mask )
+	r@ change-var
+	r@ var-set @
 	dup 0= throw
 	singleton? if
 	    r@ trigger-constraints
 	endif
     else
-	2drop
+	drop
     endif
     r> drop ;
 
@@ -229,60 +319,10 @@ variable box-counts
     gen-box-constraints ;
 
 
-\ counting potential values
-
-: gen-counts ( -- addr )
-    gridsize @ dup * dup chars allocate throw dup
-    rot 0 ?do
-        gridsize @ over c!
-        char+ loop
-    drop ;
-
-: init-counts ( -- )
-    gen-counts row-counts !
-    gen-counts col-counts !
-    gen-counts box-counts ! ;
-
-: var-set? ( var n -- f )
-    1 swap lshift swap @ and 0<> ;
-
-: check-rowcounts-digit ( n -- )
-    { digit } grid @ do-col
-	0 swap do-row
-	    digit var-set? -
-	loop-row
-	cont-i chars row-counts @ + c@ <> throw
-    loop-col ;
-
-: check-colcounts-digit ( n -- )
-    { digit } grid @ do-row
-	0 swap do-col
-	    digit var-set? -
-	loop-col
-	cont-i chars col-counts @ + c@ <> throw
-    loop-row ;
-
-: check-boxcounts-digit ( n -- )
-    { digit } grid @ do-boxes
-	0 swap do-box
-	    digit var-set? -
-	loop-box
-	cont-i chars box-counts @ + c@ <> throw
-    loop-boxes ;
-
-: check-counts ( -- )
-    gridsize @ 0 ?do
-	i check-rowcounts-digit
-	i check-colcounts-digit
-	i check-boxcounts-digit
-    loop ;
-
-
-
 \ variable words
 
 : set-variable ( u var -- )
-    1 rot lshift over var-set !
+    swap singleton over set-var
     trigger-constraints ;
 
 : make-vars { u -- }
@@ -370,6 +410,6 @@ variable box-counts
     parse-name 9 sudoku-file ;
 
 \ Local Variables:
-\ forth-local-indent-words: ((("do-row" "do-col" "do-box") (0 . 2) (0 . 2)) (("loop-row" "loop-col" "loop-box") (-2 . 0) (0 . -2)))
-\ forth-local-words: ((("do-row" "do-col" "do-box" "loop-row" "loop-col" "loop-box") compile-only (font-lock-keyword-face . 2)))
+\ forth-local-indent-words: ((("do-row" "do-col" "do-box" "do-boxes") (0 . 2) (0 . 2)) (("loop-row" "loop-col" "loop-box" "loop-boxes") (-2 . 0) (0 . -2)))
+\ forth-local-words: ((("do-row" "do-col" "do-box" "do-boxes" "loop-row" "loop-col" "loop-box" "loop-boxes") compile-only (font-lock-keyword-face . 2)))
 \ End:
