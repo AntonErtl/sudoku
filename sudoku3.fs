@@ -23,6 +23,7 @@
 \   - generate a solved puzzle, then delete random elements, and see if the
 \     result can still be solved (without backtr. or uniquely)
 \   - for symmetry, always add or delete two symmetric elements
+\ make it faster (remove all the checks)
 
 \ The program uses the following words
 \ from CORE :
