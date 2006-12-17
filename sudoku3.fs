@@ -9,13 +9,50 @@
 \ else (but not a control character) for a non-filled square; control
 \ characters are ignored; don't do trailing spaces
 
+\ ToDo:
+\ more/stronger constraints
+\ backtracking
+\ classify difficulty by which constraints are needed (& maybe other criteria)
+\ generate puzzles, two methods:
+\   - fill random squares, then try to solve it (without backtr. or uniquely)
+\   - generate a solved puzzle, then delete random elements, and see if the
+\     result can still be solved (without backtr. or uniquely)
+\   - for symmetry, always add or delete two symmetric elements
+
+\ The program uses the following words
+\ from CORE :
+\  : ; Variable dup 1- and 0= BEGIN over IF swap drop EXIT 1+ rshift UNTIL 
+\  2drop lshift @ ! WHILE REPEAT - /mod * < / + >r immediate r> LOOP i j 
+\  chars rot c! char+ c@ POSTPONE Literal r@ = ['] xor 2dup ELSE execute bl 
+\  0< > emit mod cr s>d 
+\ from CORE-EXT :
+\  0<> <> nip ?DO :noname compile, within true false 0> 
+\ from BLOCK-EXT :
+\  \ 
+\ from EXCEPTION :
+\  throw 
+\ from FILE :
+\  ( 
+\ from FLOAT :
+\  d>f f>d 
+\ from FLOAT-EXT :
+\  fsqrt 
+\ from MEMORY :
+\  allocate 
+\ from X:deferred :
+\  Defer IS 
+\ from non-ANS :
+\  parse-word struct cell% field end-struct assert( ) ENDIF { W: -- %size ]] 
+\  [[ } toupper slurp-file -rot bounds >= 
+
+
 \ 0.6.2 compatibility
 
 : parse-name parse-word ;
 
 \ defered words
 
-defer set-variable
+defer set-variable ( u var -- )
 
 \ linked list
 struct
@@ -94,7 +131,7 @@ variable box-counts
 
 \ index words
 
-: var-indexes ~~ ( addr -- row col box )
+: var-indexes ( addr -- row col box )
     grid @ - var% %size /mod ( 0 index )
     assert( over 0= )
     assert( dup gridsize @ dup * < )
@@ -105,6 +142,10 @@ variable box-counts
     gridsize @ * var% %size * grid @ + ;
 
 : col-addr ( col# -- addr )
+    var% %size * grid @ + ;
+
+: box-addr ( box# -- addr )
+    boxsize @ /mod gridsize @ * + boxsize @ *
     var% %size * grid @ + ;
 
 \ walkers
@@ -197,7 +238,7 @@ variable box-counts
 	i check-boxcounts-digit
     loop ;
 
-: gen-countconstraint ~~ { cont# digit# xt -- }
+: gen-countconstraint { cont# digit# xt -- }
     constraints% %size allocate throw >r
     :noname
     cont#  postpone literal
@@ -212,17 +253,33 @@ variable box-counts
     cont# digit# c-addr1 count-addr ( c-addr2 )
     dup c@ 1- dup rot c! assert( dup 0<> )
     1 = if
-	\ delay execution to avoid reentrancy issures
-\	cont# digit# xt gen-countconstraint
+	\ delay execution to avoid reentrancy issues
+	cont# digit# xt gen-countconstraint
     endif ;
 
-: row-oneval { row digit -- }
-    row row-addr do-col
+: box-oneval { box digit -- }
+    box box-addr do-box
+	dup var-set @ digit singleton and if
+	    digit over set-variable
+	endif
+	drop
+   loop-box ;
+    
+: col-oneval { col digit -- }
+    col col-addr do-col
 	dup var-set @ digit singleton and if
 	    digit over set-variable
 	endif
 	drop
     loop-col ;
+
+: row-oneval { row digit -- }
+    row row-addr do-row
+	dup var-set @ digit singleton and if
+	    digit over set-variable
+	endif
+	drop
+    loop-row ;
 
 : change-var { changes var -- }
     \ changes is the set of bits that are deleted from var
@@ -231,12 +288,12 @@ variable box-counts
     gridsize @ 0 ?do
 	i singleton changes and if
 	    var var-indexes
-	    i box-counts @ ['] 2drop update-count
-	    i col-counts @ ['] 2drop update-count
+	    i box-counts @ ['] box-oneval update-count
+	    i col-counts @ ['] col-oneval update-count
 	    i row-counts @ ['] row-oneval update-count
 	endif
     loop
-    var var-set dup @ changes xor swap !
+    var var-set dup @ changes xor assert( dup ) swap !
     check-counts \ not re-rentrant
 ;
 
@@ -360,6 +417,7 @@ variable box-counts
 \ variable words
 
 :noname ( u var -- )
+    \ set variable to value u
     swap singleton over var-set @ over <> if ( var mask )
 	over set-var trigger-constraints
     else
