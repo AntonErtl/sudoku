@@ -1,5 +1,10 @@
 \ constraint-based sudoku solver (and maybe later more), by Anton Ertl
 
+\ Currently this programs solves simple Sudoku puzzles with techniques
+\ similar to what a human would use.  If these methods fail, the
+\ puzzle is too complex for this solver, and it will just output the
+\ squares it knows to be correct.
+
 \ Usage:
 
 \ To solve a 9x9 Sudoku with the start values residing in <file>
